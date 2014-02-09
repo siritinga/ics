@@ -25,6 +25,17 @@ type Event struct {
 	Summary, Location, Description string
 }
 
+func (e *Event) String() string {
+	s := make([]string, 0,6)
+	s=append(s, "UID:" +e.UID)
+	s=append(s, "Start: "+e.Start.String())
+	s=append(s, "End: "+e.End.String())
+	s=append(s, "Summary: "+e.Summary)
+	s=append(s, "Location: "+e.Location)
+	s=append(s, "Description: "+e.Description)
+	return strings.Join(s,"\n")
+}
+
 func Decode(rd io.Reader) (c *Calendar, err error) {
 	r := bufio.NewReader(rd)
 	for {
@@ -64,6 +75,7 @@ func decodeEvent(r *bufio.Reader) (*Event, error) {
 			return nil, err
 		}
 		key, value, err = decodeLine(r)
+		value=UnescapeText(value)
 		switch key {
 		case "END":
 			if value != "VEVENT" {
@@ -74,8 +86,12 @@ func decodeEvent(r *bufio.Reader) (*Event, error) {
 			e.UID = value
 		case "DTSTART":
 			e.Start, err = decodeTime(value)
+		case "DTSTART;VALUE=DATE":
+			e.Start, err = decodeDate(value)
 		case "DTEND":
 			e.End, err = decodeTime(value)
+		case "DTEND;VALUE=DATE":
+			e.End, err = decodeDate(value)
 		case "SUMMARY":
 			e.Summary = value
 		case "LOCATION":
@@ -89,6 +105,11 @@ func decodeEvent(r *bufio.Reader) (*Event, error) {
 
 func decodeTime(value string) (time.Time, error) {
 	const layout = "20060102T150405Z"
+	return time.Parse(layout, value)
+}
+
+func decodeDate(value string) (time.Time, error) {
+	const layout = "20060102"
 	return time.Parse(layout, value)
 }
 
@@ -139,3 +160,12 @@ func (l eventList) Less(i, j int) bool {
 }
 func (l eventList) Swap(i, j int) { l[i], l[j] = l[j], l[i] }
 func (l eventList) Len() int      { return len(l) }
+
+// From https://github.com/laurent22/ical-go/blob/master/ical.go
+func UnescapeText(s string) string {
+	s = strings.Replace(s, "\\;", ";", -1)
+	s = strings.Replace(s, "\\,", ",", -1)
+	s = strings.Replace(s, "\\n", "\n", -1)	
+	s = strings.Replace(s, "\\\\", "\\", -1)	
+	return s
+}
