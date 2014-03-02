@@ -26,14 +26,14 @@ type Event struct {
 }
 
 func (e *Event) String() string {
-	s := make([]string, 0,6)
-	s=append(s, "UID:" +e.UID)
-	s=append(s, "Start: "+e.Start.String())
-	s=append(s, "End: "+e.End.String())
-	s=append(s, "Summary: "+e.Summary)
-	s=append(s, "Location: "+e.Location)
-	s=append(s, "Description: "+e.Description)
-	return strings.Join(s,"\n")
+	s := make([]string, 0, 6)
+	s = append(s, "UID:"+e.UID)
+	s = append(s, "Start: "+e.Start.String())
+	s = append(s, "End: "+e.End.String())
+	s = append(s, "Summary: "+e.Summary)
+	s = append(s, "Location: "+e.Location)
+	s = append(s, "Description: "+e.Description)
+	return strings.Join(s, "\n")
 }
 
 func Decode(rd io.Reader) (c *Calendar, err error) {
@@ -75,7 +75,14 @@ func decodeEvent(r *bufio.Reader) (*Event, error) {
 			return nil, err
 		}
 		key, value, err = decodeLine(r)
-		value=UnescapeText(value)
+		// Fix dates
+		if len(key) >= 7 && key[0:7] == "DTSTART" {
+			key = "DTSTART"
+		}
+		if len(key) >= 5 && key[0:5] == "DTEND" {
+			key = "DTEND"
+		}
+		value = UnescapeText(value)
 		switch key {
 		case "END":
 			if value != "VEVENT" {
@@ -85,11 +92,11 @@ func decodeEvent(r *bufio.Reader) (*Event, error) {
 		case "UID":
 			e.UID = value
 		case "DTSTART":
-			e.Start, err = decodeTime(value)
+			e.Start, err = decodeDate(value)
 		case "DTSTART;VALUE=DATE":
 			e.Start, err = decodeDate(value)
 		case "DTEND":
-			e.End, err = decodeTime(value)
+			e.End, err = decodeDate(value)
 		case "DTEND;VALUE=DATE":
 			e.End, err = decodeDate(value)
 		case "SUMMARY":
@@ -110,7 +117,7 @@ func decodeTime(value string) (time.Time, error) {
 
 func decodeDate(value string) (time.Time, error) {
 	const layout = "20060102"
-	return time.Parse(layout, value)
+	return time.Parse(layout, value[0:8])
 }
 
 func decodeLine(r *bufio.Reader) (key, value string, err error) {
@@ -165,7 +172,9 @@ func (l eventList) Len() int      { return len(l) }
 func UnescapeText(s string) string {
 	s = strings.Replace(s, "\\;", ";", -1)
 	s = strings.Replace(s, "\\,", ",", -1)
-	s = strings.Replace(s, "\\n", "\n", -1)	
-	s = strings.Replace(s, "\\\\", "\\", -1)	
+	s = strings.Replace(s, "\\n", "\n", -1)
+	s = strings.Replace(s, "\\\\", "\\", -1)
+	s = strings.Replace(s, "\n", " ", -1)
+	s = strings.Replace(s, "&nbsp", " ", -1)
 	return s
 }
