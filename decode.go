@@ -9,6 +9,7 @@ import (
 	"bufio"
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"sort"
 	"strings"
@@ -86,9 +87,13 @@ func decodeEvent(r *bufio.Reader) (*Event, error) {
 		switch key {
 		case "END":
 			if value != "VEVENT" {
-				return nil, errors.New("unexpected END value")
+				// Temporary ignore any other END. Problems with END:VALARM found.
+				// return nil, errors.New("unexpected END value")
+				continue
+				
+			} else {
+				return e, nil
 			}
-			return e, nil
 		case "UID":
 			e.UID = value
 		case "DTSTART":
@@ -135,7 +140,8 @@ func decodeLine(r *bufio.Reader) (key, value string, err error) {
 			return "", "", errors.New("unexpected long line")
 		}
 		if len(b) == 0 {
-			return "", "", errors.New("unexpected blank line")
+			//			return "", "", errors.New("unexpected blank line")
+			continue
 		}
 		if b[0] == ' ' {
 			b = b[1:]
@@ -149,6 +155,7 @@ func decodeLine(r *bufio.Reader) (key, value string, err error) {
 	}
 	p := strings.SplitN(buf.String(), ":", 2)
 	if len(p) != 2 {
+		fmt.Println("ERROR: len(p)=", len(p), p)
 		return "", "", errors.New("bad line, couldn't find key:value")
 	}
 	return p[0], p[1], nil
