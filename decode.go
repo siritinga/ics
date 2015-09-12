@@ -45,7 +45,6 @@ func Decode(rd io.Reader) (c *Calendar, err error) {
 			return nil, err
 		}
 		if key == "BEGIN" {
-			fmt.Println("Decoded: ", key, value)
 			if c == nil {
 				if value != "VCALENDAR" {
 					return nil, errors.New("didn't find BEGIN:VCALENDAR")
