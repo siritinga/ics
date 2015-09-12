@@ -45,6 +45,7 @@ func Decode(rd io.Reader) (c *Calendar, err error) {
 			return nil, err
 		}
 		if key == "BEGIN" {
+			fmt.Println("Decoded: ", key, value)
 			if c == nil {
 				if value != "VCALENDAR" {
 					return nil, errors.New("didn't find BEGIN:VCALENDAR")
@@ -73,6 +74,9 @@ func decodeEvent(r *bufio.Reader) (*Event, error) {
 	var err error
 	for {
 		if err != nil {
+			if err == io.EOF {
+				return e, nil
+			}
 			return nil, err
 		}
 		key, value, err = decodeLine(r)
@@ -90,7 +94,7 @@ func decodeEvent(r *bufio.Reader) (*Event, error) {
 				// Temporary ignore any other END. Problems with END:VALARM found.
 				// return nil, errors.New("unexpected END value")
 				continue
-				
+
 			} else {
 				return e, nil
 			}
@@ -122,22 +126,25 @@ func decodeTime(value string) (time.Time, error) {
 
 func decodeDate(value string) (time.Time, error) {
 	const layout = "20060102"
+	if len(value) < 8 {
+		return time.Time{}, nil //Devolvemos fecha por defecto
+	}
 	return time.Parse(layout, value[0:8])
 }
 
 func decodeLine(r *bufio.Reader) (key, value string, err error) {
 	var buf bytes.Buffer
-	for {
+	done := false
+	for !done {
 		// get full line
-		b, isPrefix, err := r.ReadLine()
+		//		b, isPrefix, err := r.ReadLine()
+		b, err := r.ReadBytes('\n')
 		if err != nil {
 			if err == io.EOF {
-				err = io.ErrUnexpectedEOF
+				done = true
+			} else {
+				return "", "", err
 			}
-			return "", "", err
-		}
-		if isPrefix {
-			return "", "", errors.New("unexpected long line")
 		}
 		if len(b) == 0 {
 			//			return "", "", errors.New("unexpected blank line")
@@ -158,7 +165,7 @@ func decodeLine(r *bufio.Reader) (key, value string, err error) {
 		fmt.Println("ERROR: len(p)=", len(p), p)
 		return "", "", errors.New("bad line, couldn't find key:value")
 	}
-	return p[0], p[1], nil
+	return strings.Trim(p[0], " \r\n"), strings.Trim(p[1], " \r\n"), nil
 }
 
 type eventList []*Event
