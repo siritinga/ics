@@ -38,9 +38,17 @@ func (e *Event) String() string {
 }
 
 func Decode(rd io.Reader) (c *Calendar, err error) {
+	return decode(rd, true)
+}
+
+func DecodePreserveCRLF(rd io.Reader) (c *Calendar, err error) {
+	return decode(rd, false)
+}
+
+func decode(rd io.Reader, removeCRLF bool) (c *Calendar, err error) {
 	r := bufio.NewReader(rd)
 	for {
-		key, value, err := decodeLine(r)
+		key, value, err := decodeLine(r, removeCRLF)
 		if err != nil {
 			return nil, err
 		}
@@ -52,7 +60,7 @@ func Decode(rd io.Reader) (c *Calendar, err error) {
 				c = new(Calendar)
 			}
 			if value == "VEVENT" {
-				e, err := decodeEvent(r)
+				e, err := decodeEvent(r, removeCRLF)
 				if err != nil {
 					return nil, err
 				}
@@ -67,7 +75,7 @@ func Decode(rd io.Reader) (c *Calendar, err error) {
 	return c, nil
 }
 
-func decodeEvent(r *bufio.Reader) (*Event, error) {
+func decodeEvent(r *bufio.Reader, removeCRLF bool) (*Event, error) {
 	e := new(Event)
 	var key, value string
 	var err error
@@ -78,7 +86,7 @@ func decodeEvent(r *bufio.Reader) (*Event, error) {
 			}
 			return nil, err
 		}
-		key, value, err = decodeLine(r)
+		key, value, err = decodeLine(r, removeCRLF)
 		// Fix dates
 		if len(key) >= 7 && key[0:7] == "DTSTART" {
 			key = "DTSTART"
@@ -115,7 +123,6 @@ func decodeEvent(r *bufio.Reader) (*Event, error) {
 			e.Description = value
 		}
 	}
-	panic("unreachable")
 }
 
 func decodeTime(value string) (time.Time, error) {
@@ -131,7 +138,7 @@ func decodeDate(value string) (time.Time, error) {
 	return time.Parse(layout, value[0:8])
 }
 
-func decodeLine(r *bufio.Reader) (key, value string, err error) {
+func decodeLine(r *bufio.Reader, removeCRLF bool) (key, value string, err error) {
 	var buf bytes.Buffer
 	done := false
 	for !done {
@@ -164,7 +171,14 @@ func decodeLine(r *bufio.Reader) (key, value string, err error) {
 		fmt.Println("ERROR: len(p)=", len(p), p)
 		return "", "", errors.New("bad line, couldn't find key:value")
 	}
-	return strings.Trim(p[0], " \r\n"), strings.Trim(p[1], " \r\n"), nil
+	if !removeCRLF {
+		trimmed1 := strings.Trim(p[0], " ")
+		trimmed2 := strings.Trim(p[1], " ")
+		return trimmed1, trimmed2, nil
+	}
+	trimmed1 := strings.Trim(p[0], " \r\n")
+	trimmed2 := strings.Trim(p[1], " \r\n")
+	return trimmed1, trimmed2, nil
 }
 
 type eventList []*Event
