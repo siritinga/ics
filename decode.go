@@ -94,7 +94,7 @@ func decodeEvent(r *bufio.Reader, removeCRLF bool) (*Event, error) {
 		if len(key) >= 5 && key[0:5] == "DTEND" {
 			key = "DTEND"
 		}
-		value = UnescapeText(value)
+		value = UnescapeText(value, removeCRLF)
 		switch key {
 		case "END":
 			if value != "VEVENT" {
@@ -171,11 +171,11 @@ func decodeLine(r *bufio.Reader, removeCRLF bool) (key, value string, err error)
 		fmt.Println("ERROR: len(p)=", len(p), p)
 		return "", "", errors.New("bad line, couldn't find key:value")
 	}
-	if !removeCRLF {
+	/*if !removeCRLF {
 		trimmed1 := strings.Trim(p[0], " ")
 		trimmed2 := strings.Trim(p[1], " ")
 		return trimmed1, trimmed2, nil
-	}
+	}*/
 	trimmed1 := strings.Trim(p[0], " \r\n")
 	trimmed2 := strings.Trim(p[1], " \r\n")
 	return trimmed1, trimmed2, nil
@@ -196,12 +196,16 @@ func (l eventList) Swap(i, j int) { l[i], l[j] = l[j], l[i] }
 func (l eventList) Len() int      { return len(l) }
 
 // From https://github.com/laurent22/ical-go/blob/master/ical.go
-func UnescapeText(s string) string {
+func UnescapeText(s string, removeCRLF bool) string {
 	s = strings.Replace(s, "\\;", ";", -1)
 	s = strings.Replace(s, "\\,", ",", -1)
-	s = strings.Replace(s, "\\n", "\n", -1)
+	if removeCRLF {
+		s = strings.Replace(s, "\\n", "\n", -1)
+	}
 	s = strings.Replace(s, "\\\\", "\\", -1)
-	s = strings.Replace(s, "\n", " ", -1)
+	if removeCRLF {
+		s = strings.Replace(s, "\n", " ", -1)
+	}
 	s = strings.Replace(s, "&nbsp", " ", -1)
 	return s
 }
