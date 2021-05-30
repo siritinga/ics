@@ -16,10 +16,12 @@ import (
 	"time"
 )
 
+// Calendar ...
 type Calendar struct {
 	Event []*Event
 }
 
+// Event ...
 type Event struct {
 	UID                            string
 	Start, End                     time.Time
@@ -37,10 +39,20 @@ func (e *Event) String() string {
 	return strings.Join(s, "\n")
 }
 
+// Decode ...
 func Decode(rd io.Reader) (c *Calendar, err error) {
+	return decode(rd, true)
+}
+
+// DecodePreserveCRLF ...
+func DecodePreserveCRLF(rd io.Reader) (c *Calendar, err error) {
+	return decode(rd, false)
+}
+
+func decode(rd io.Reader, removeCRLF bool) (c *Calendar, err error) {
 	r := bufio.NewReader(rd)
 	for {
-		key, value, err := decodeLine(r)
+		key, value, err := decodeLine(r, removeCRLF)
 		if err != nil {
 			return nil, err
 		}
@@ -52,7 +64,7 @@ func Decode(rd io.Reader) (c *Calendar, err error) {
 				c = new(Calendar)
 			}
 			if value == "VEVENT" {
-				e, err := decodeEvent(r)
+				e, err := decodeEvent(r, removeCRLF)
 				if err != nil {
 					return nil, err
 				}
@@ -67,7 +79,7 @@ func Decode(rd io.Reader) (c *Calendar, err error) {
 	return c, nil
 }
 
-func decodeEvent(r *bufio.Reader) (*Event, error) {
+func decodeEvent(r *bufio.Reader, removeCRLF bool) (*Event, error) {
 	e := new(Event)
 	var key, value string
 	var err error
@@ -78,7 +90,7 @@ func decodeEvent(r *bufio.Reader) (*Event, error) {
 			}
 			return nil, err
 		}
-		key, value, err = decodeLine(r)
+		key, value, err = decodeLine(r, removeCRLF)
 		// Fix dates
 		if len(key) >= 7 && key[0:7] == "DTSTART" {
 			key = "DTSTART"
@@ -86,7 +98,7 @@ func decodeEvent(r *bufio.Reader) (*Event, error) {
 		if len(key) >= 5 && key[0:5] == "DTEND" {
 			key = "DTEND"
 		}
-		value = UnescapeText(value)
+		value = UnescapeText(value, removeCRLF)
 		switch key {
 		case "END":
 			if value != "VEVENT" {
@@ -100,13 +112,13 @@ func decodeEvent(r *bufio.Reader) (*Event, error) {
 		case "UID":
 			e.UID = value
 		case "DTSTART":
-			e.Start, err = decodeDate(value)
+			e.Start, err = decodeTime(value)
 		case "DTSTART;VALUE=DATE":
-			e.Start, err = decodeDate(value)
+			e.Start, err = decodeTime(value)
 		case "DTEND":
-			e.End, err = decodeDate(value)
+			e.End, err = decodeTime(value)
 		case "DTEND;VALUE=DATE":
-			e.End, err = decodeDate(value)
+			e.End, err = decodeTime(value)
 		case "SUMMARY":
 			e.Summary = value
 		case "LOCATION":
@@ -115,12 +127,16 @@ func decodeEvent(r *bufio.Reader) (*Event, error) {
 			e.Description = value
 		}
 	}
-	panic("unreachable")
 }
 
 func decodeTime(value string) (time.Time, error) {
 	const layout = "20060102T150405Z"
-	return time.Parse(layout, value)
+	hora, err := time.Parse(layout, value)
+	if err != nil {
+		hora = time.Time{}
+	}
+	//fmt.Println(value, hora)
+	return hora, nil
 }
 
 func decodeDate(value string) (time.Time, error) {
@@ -131,7 +147,7 @@ func decodeDate(value string) (time.Time, error) {
 	return time.Parse(layout, value[0:8])
 }
 
-func decodeLine(r *bufio.Reader) (key, value string, err error) {
+func decodeLine(r *bufio.Reader, removeCRLF bool) (key, value string, err error) {
 	var buf bytes.Buffer
 	done := false
 	for !done {
@@ -164,7 +180,14 @@ func decodeLine(r *bufio.Reader) (key, value string, err error) {
 		fmt.Println("ERROR: len(p)=", len(p), p)
 		return "", "", errors.New("bad line, couldn't find key:value")
 	}
-	return strings.Trim(p[0], " \r\n"), strings.Trim(p[1], " \r\n"), nil
+	/*if !removeCRLF {
+		trimmed1 := strings.Trim(p[0], " ")
+		trimmed2 := strings.Trim(p[1], " ")
+		return trimmed1, trimmed2, nil
+	}*/
+	trimmed1 := strings.Trim(p[0], " \r\n")
+	trimmed2 := strings.Trim(p[1], " \r\n")
+	return trimmed1, trimmed2, nil
 }
 
 type eventList []*Event
@@ -181,13 +204,17 @@ func (l eventList) Less(i, j int) bool {
 func (l eventList) Swap(i, j int) { l[i], l[j] = l[j], l[i] }
 func (l eventList) Len() int      { return len(l) }
 
-// From https://github.com/laurent22/ical-go/blob/master/ical.go
-func UnescapeText(s string) string {
+// UnescapeText From https://github.com/laurent22/ical-go/blob/master/ical.go
+func UnescapeText(s string, removeCRLF bool) string {
 	s = strings.Replace(s, "\\;", ";", -1)
 	s = strings.Replace(s, "\\,", ",", -1)
-	s = strings.Replace(s, "\\n", "\n", -1)
+	if removeCRLF {
+		s = strings.Replace(s, "\\n", "\n", -1)
+	}
 	s = strings.Replace(s, "\\\\", "\\", -1)
-	s = strings.Replace(s, "\n", " ", -1)
+	if removeCRLF {
+		s = strings.Replace(s, "\n", " ", -1)
+	}
 	s = strings.Replace(s, "&nbsp", " ", -1)
 	return s
 }
