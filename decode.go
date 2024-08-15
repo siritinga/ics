@@ -218,6 +218,7 @@ func (l eventList) Less(i, j int) bool {
 func (l eventList) Swap(i, j int) { l[i], l[j] = l[j], l[i] }
 func (l eventList) Len() int      { return len(l) }
 
+
 // UnescapeText From https://github.com/laurent22/ical-go/blob/master/ical.go
 func UnescapeText(s string, removeCRLF bool) string {
 	s = strings.Replace(s, "\\;", ";", -1)
