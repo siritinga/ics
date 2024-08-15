@@ -5,6 +5,7 @@
 // Package ics provides support for reading Apple's iCalendar file format.
 package ics
 
+
 import (
 	"bufio"
 	"bytes"
