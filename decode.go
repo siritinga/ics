@@ -91,6 +91,7 @@ func decodeEvent(r *bufio.Reader, removeCRLF bool) (*Event, error) {
 			return nil, err
 		}
 		key, value, err = decodeLine(r, removeCRLF)
+		key, value, err = decodeLine(r, removeCRLF)
 		// Fix dates
 		if len(key) >= 7 && key[0:7] == "DTSTART" {
 			key = "DTSTART"
@@ -98,6 +99,7 @@ func decodeEvent(r *bufio.Reader, removeCRLF bool) (*Event, error) {
 		if len(key) >= 5 && key[0:5] == "DTEND" {
 			key = "DTEND"
 		}
+		value = UnescapeText(value, removeCRLF)
 		value = UnescapeText(value, removeCRLF)
 		switch key {
 		case "END":
@@ -204,8 +206,8 @@ func (l eventList) Less(i, j int) bool {
 func (l eventList) Swap(i, j int) { l[i], l[j] = l[j], l[i] }
 func (l eventList) Len() int      { return len(l) }
 
-// UnescapeText From https://github.com/laurent22/ical-go/blob/master/ical.go
-func UnescapeText(s string, removeCRLF bool) string {
+// From https://github.com/laurent22/ical-go/blob/master/ical.go
+func UnescapeText(s string) string {
 	s = strings.Replace(s, "\\;", ";", -1)
 	s = strings.Replace(s, "\\,", ",", -1)
 	if removeCRLF {
