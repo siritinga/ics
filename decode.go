@@ -26,16 +26,21 @@ type Event struct {
 	UID                            string
 	Start, End                     time.Time
 	Summary, Location, Description string
+	Attendee                       []string
 }
 
 func (e *Event) String() string {
-	s := make([]string, 0, 6)
+	s := make([]string, 0, 7)
 	s = append(s, "UID:"+e.UID)
 	s = append(s, "Start: "+e.Start.String())
 	s = append(s, "End: "+e.End.String())
 	s = append(s, "Summary: "+e.Summary)
 	s = append(s, "Location: "+e.Location)
 	s = append(s, "Description: "+e.Description)
+	if len(e.Attendee) > 0 {
+		s = append(s, "Attendee: "+strings.Join(e.Attendee, ", "))
+	}
+
 	return strings.Join(s, "\n")
 }
 
@@ -91,7 +96,6 @@ func decodeEvent(r *bufio.Reader, removeCRLF bool) (*Event, error) {
 			return nil, err
 		}
 		key, value, err = decodeLine(r, removeCRLF)
-		key, value, err = decodeLine(r, removeCRLF)
 		// Fix dates
 		if len(key) >= 7 && key[0:7] == "DTSTART" {
 			key = "DTSTART"
@@ -99,7 +103,6 @@ func decodeEvent(r *bufio.Reader, removeCRLF bool) (*Event, error) {
 		if len(key) >= 5 && key[0:5] == "DTEND" {
 			key = "DTEND"
 		}
-		value = UnescapeText(value, removeCRLF)
 		value = UnescapeText(value, removeCRLF)
 		switch key {
 		case "END":
@@ -127,6 +130,15 @@ func decodeEvent(r *bufio.Reader, removeCRLF bool) (*Event, error) {
 			e.Location = value
 		case "DESCRIPTION":
 			e.Description = value
+		default:
+			// Check if it is ATTENDEE, as it is a bit special
+			if strings.Index(key, "ATTENDEE") == 0 {
+				// Get last field separated by :
+				mail := strings.Split(value, ":")
+				if len(mail) > 0 {
+					e.Attendee = append(e.Attendee, mail[len(mail)-1])
+				}
+			}
 		}
 	}
 }
@@ -180,7 +192,7 @@ func decodeLine(r *bufio.Reader, removeCRLF bool) (key, value string, err error)
 	p := strings.SplitN(buf.String(), ":", 2)
 	if len(p) != 2 {
 		fmt.Println("ERROR: len(p)=", len(p), p)
-		return "", "", errors.New("bad line, couldn't find key:value")
+		return "", "", errors.New("bad line, couldn't find key:value " + buf.String())
 	}
 	/*if !removeCRLF {
 		trimmed1 := strings.Trim(p[0], " ")
@@ -206,8 +218,8 @@ func (l eventList) Less(i, j int) bool {
 func (l eventList) Swap(i, j int) { l[i], l[j] = l[j], l[i] }
 func (l eventList) Len() int      { return len(l) }
 
-// From https://github.com/laurent22/ical-go/blob/master/ical.go
-func UnescapeText(s string) string {
+// UnescapeText From https://github.com/laurent22/ical-go/blob/master/ical.go
+func UnescapeText(s string, removeCRLF bool) string {
 	s = strings.Replace(s, "\\;", ";", -1)
 	s = strings.Replace(s, "\\,", ",", -1)
 	if removeCRLF {
